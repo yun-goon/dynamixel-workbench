@@ -1,14 +1,23 @@
 #include <rclcpp/rclcpp.hpp>
 #include <dynamixel_workbench_toolbox/dynamixel_workbench.h>
-#include <vector>
+#include <csignal>
 
 #define BAUDRATE_NUM 7
 
-int main(int argc, char *argv[]) 
+bool keep_running = true;
+
+void signal_handler(int signum)
+{
+  keep_running = false;
+}
+
+int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
-  auto node = rclcpp::Node::make_shared("dynamixel_scanner");
 
+  std::signal(SIGINT, signal_handler);
+
+  auto node = rclcpp::Node::make_shared("dynamixel_scanner");
   std::string port_name = "/dev/ttyUSB0";
 
   if (argc < 2)
@@ -22,19 +31,16 @@ int main(int argc, char *argv[])
   }
 
   DynamixelWorkbench dxl_wb;
-
   const char *log;
   bool result = false;
 
   uint8_t scanned_id[100];
   uint8_t dxl_cnt = 0;
-
   uint32_t baudrate[BAUDRATE_NUM] = {9600, 57600, 115200, 1000000, 2000000, 3000000, 4000000};
   uint8_t range = 253;
-
   uint8_t index = 0;
 
-  while (index < BAUDRATE_NUM)
+  while (index < BAUDRATE_NUM && keep_running)
   {
     result = dxl_wb.init(port_name.c_str(), baudrate[index], &log);
     if (result == false)
@@ -66,8 +72,10 @@ int main(int argc, char *argv[])
     }
 
     index++;
+    rclcpp::spin_some(node);
   }
 
+  RCLCPP_INFO(node->get_logger(), "Shutting down...");
   rclcpp::shutdown();
   return 0;
 }
